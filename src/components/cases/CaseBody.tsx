@@ -19,27 +19,62 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
     })
   }
 
-  const getDocumentContent = () => {
-    // In a real implementation, this would render the actual case content
-    // For now, we'll create a structured mock content
-    return {
-      background: `This case concerns the interpretation of EU legislation regarding ${caseData.title?.toLowerCase() || 'legal matters'}. The referring court seeks clarification on specific provisions that have generated uncertainty in national proceedings.`,
-      
-      facts: `The facts of the case establish that ${caseData.parties || 'the parties'} are involved in a dispute that requires the interpretation of relevant EU law provisions. The national court has identified several questions that require preliminary ruling from the Court of Justice.`,
-      
-      questions: [
-        'Whether the relevant EU provisions should be interpreted as precluding national legislation that...',
-        'Whether the principle of effectiveness requires that Member States ensure...',
-        'Whether the interpretation of the provisions in question is compatible with...'
-      ],
-      
-      analysis: `The Court notes that this case raises important questions about the interpretation and application of EU law. The referring court's questions concern fundamental principles of EU law, including the principle of effectiveness and the obligation of Member States to ensure compliance with EU obligations.`,
-      
-      conclusion: `For these reasons, the Court hereby rules that the provisions in question must be interpreted in accordance with the principles established in previous case law, taking into account the specific circumstances of the case and the need to ensure effective protection of rights under EU law.`
-    }
+  const parseMarkdownContent = (content: string) => {
+    if (!content) return null
+    
+    // Split content by main sections
+    const sections = content.split(/^## /gm).filter(Boolean)
+    const parsedSections: { [key: string]: string } = {}
+    
+    sections.forEach(section => {
+      const lines = section.split('\n')
+      const title = lines[0].trim()
+      const content = lines.slice(1).join('\n').trim()
+      parsedSections[title.toLowerCase()] = content
+    })
+    
+    return parsedSections
   }
 
-  const content = getDocumentContent()
+  const generateTableOfContents = (content: string) => {
+    if (!content) return []
+    
+    const headers = content.match(/^## .+$/gm) || []
+    return headers.map(header => ({
+      title: header.replace('## ', ''),
+      id: header.replace('## ', '').toLowerCase().replace(/\s+/g, '-')
+    }))
+  }
+
+  const renderMarkdownSection = (content: string) => {
+    if (!content) return null
+    
+    // Basic markdown rendering for legal documents
+    return content
+      .replace(/^(\d+)\\\. /gm, '$1. ') // Fix escaped numbers
+      .replace(/\\\[/g, '[') // Fix escaped brackets
+      .replace(/\\\]/g, ']')
+      .split('\n\n')
+      .map((paragraph, index) => {
+        if (paragraph.startsWith('###')) {
+          return (
+            <h4 key={index} className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+              {paragraph.replace('### ', '')}
+            </h4>
+          )
+        }
+        if (paragraph.trim() === '') return null
+        return (
+          <p key={index} className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+            {paragraph}
+          </p>
+        )
+      })
+      .filter(Boolean)
+  }
+
+  const content = parseMarkdownContent(caseData.plaintext_content || '')
+  const tableOfContents = generateTableOfContents(caseData.plaintext_content || '')
 
   return (
     <div className={`space-y-6 ${!isMobile ? 'sticky top-6' : ''}`}>
@@ -107,92 +142,60 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
 
           {/* Case Content */}
           <div className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed">
-            {/* Background */}
-            <section id="background" className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Background to the dispute
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {content.background}
-              </p>
-            </section>
-
-            {/* Facts */}
-            <section className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Facts of the case
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {content.facts}
-              </p>
-            </section>
-
-            {/* Questions */}
-            <section id="questions" className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Questions referred for preliminary ruling
-              </h3>
-              <div className="space-y-4">
-                {content.questions.map((question, index) => (
-                  <div key={index} id={`question-${index + 1}`}>
-                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      Question {index + 1}
-                    </h4>
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {question}
-                    </p>
+            {content ? (
+              // Render actual case content from plaintext
+              Object.entries(content).map(([sectionTitle, sectionContent]) => (
+                <section key={sectionTitle} id={sectionTitle.replace(/\s+/g, '-')} className="mb-8">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    {sectionTitle === 'parties' ? 'Parties' :
+                     sectionTitle === 'grounds' ? 'Grounds' :
+                     sectionTitle === 'operative part' ? 'On those grounds, the Court hereby rules:' :
+                     sectionTitle.charAt(0).toUpperCase() + sectionTitle.slice(1)}
+                  </h3>
+                  <div>
+                    {renderMarkdownSection(sectionContent)}
                   </div>
-                ))}
-              </div>
-            </section>
+                </section>
+              ))
+            ) : (
+              // Fallback content when no plaintext is available
+              <>
+                <section className="mb-8">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    Case Information
+                  </h3>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    This case concerns {caseData.title?.toLowerCase() || 'legal matters'}. 
+                    {caseData.summary_text && (
+                      <span> {caseData.summary_text}</span>
+                    )}
+                  </p>
+                </section>
 
-            {/* Analysis */}
-            <section className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Analysis
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {content.analysis}
-              </p>
-            </section>
-
-            {/* Costs */}
-            <section id="costs" className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Costs
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Since these proceedings are, for the parties to the main proceedings, a step in the action pending before the national court, the decision on costs is a matter for that court.
-              </p>
-            </section>
-
-            {/* Operative Part */}
-            <section id="operative-part" className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                On those grounds, the Court hereby rules:
-              </h3>
-              
-              {caseData.operative_parts && caseData.operative_parts.length > 0 ? (
-                <div className="space-y-4">
-                  {caseData.operative_parts
-                    .sort((a, b) => a.part_number - b.part_number)
-                    .map((part) => (
-                      <div key={part.id} className="bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500 p-4 rounded-r">
-                        <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                          {part.part_number}.
-                        </div>
-                        <p className="text-gray-800 dark:text-gray-200 leading-relaxed">
-                          {part.verbatim_text}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                  {content.conclusion}
-                </p>
-              )}
-            </section>
+                {/* Show operative parts if available */}
+                {caseData.operative_parts && caseData.operative_parts.length > 0 && (
+                  <section id="operative-part" className="mb-8">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                      On those grounds, the Court hereby rules:
+                    </h3>
+                    <div className="space-y-4">
+                      {caseData.operative_parts
+                        .sort((a, b) => a.part_number - b.part_number)
+                        .map((part) => (
+                          <div key={part.id} className="bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500 p-4 rounded-r">
+                            <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                              {part.part_number}.
+                            </div>
+                            <p className="text-gray-800 dark:text-gray-200 leading-relaxed">
+                              {part.verbatim_text}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
           </div>
 
           {/* Footer */}

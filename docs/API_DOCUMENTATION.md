@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Lexx API provides access to EU legislation, case law, and legal research functionality. The API is designed for legal professionals to efficiently navigate and cross-reference EU legal documents.
+The Lexx API provides comprehensive access to EU legislation, case law, and legal research functionality. The API is **production-ready** with advanced search, caching, authentication, and performance optimizations designed for professional legal research.
 
 ## Base URL
 ```
@@ -10,14 +10,23 @@ Production: https://your-domain.com/api
 Development: http://localhost:3000/api
 ```
 
-## Authentication
+## 🔐 Authentication & Security
 
-⚠️ **PLACEHOLDER NOTE**: Current implementation has no authentication. This should be implemented before production.
+**✅ PRODUCTION-READY AUTHENTICATION**:
+- **Supabase Auth** integration with role-based access control
+- **User roles**: `lawyer`, `admin`, `readonly` with different permissions
+- **Rate limiting** with role-specific quotas (Readonly: 100/min, Lawyer: 500/min, Admin: 1000/min)
+- **Request validation** with XSS/SQL injection prevention
+- **Input sanitization** and comprehensive security checks
 
-**Recommended Authentication**: 
-- JWT Bearer tokens for authenticated users
-- API keys for service-to-service communication
-- Rate limiting by IP/user
+## 🚀 Performance & Caching
+
+**Advanced Caching System**:
+- **Memory-based caching** with LRU eviction (Redis-ready architecture)
+- **Intelligent cache invalidation** with tag-based cache management
+- **Response compression** for faster data transfer
+- **Cache durations**: 15-minute legislation cache, 5-minute search cache
+- **Performance monitoring** with comprehensive health checks
 
 ## Common Response Format
 

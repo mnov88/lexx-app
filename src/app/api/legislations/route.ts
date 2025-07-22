@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { withCache } from '@/lib/cache'
 
-export async function GET() {
+async function legislationsHandler() {
   try {
     const { data, error } = await supabase
       .from('legislations')
@@ -22,3 +23,13 @@ export async function GET() {
     )
   }
 }
+
+export const GET = withCache(
+  {
+    duration: 15 * 60 * 1000, // 15 minutes cache
+    maxSize: 1000,
+    compression: true,
+    tags: ['legislations']
+  },
+  legislationsHandler
+)

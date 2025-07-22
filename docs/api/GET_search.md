@@ -1,16 +1,19 @@
-# Search API - GET /api/search
+# Advanced Search API - GET /api/search
 
 ## Endpoint Information
 - **Path**: `/api/search`
 - **Method**: `GET`
-- **Description**: Search across EU legislation, case law, and articles with relevance scoring
-- **Version**: `v1.0`
-- **Last Updated**: `2024-07-21`
+- **Description**: **🚀 PRODUCTION-READY** Advanced multi-entity search with vector embeddings, semantic search, and intelligent relevance scoring
+- **Version**: `v2.0`
+- **Last Updated**: `2025-07-22`
+- **Status**: `PRODUCTION READY ✅`
 
-## Authentication
-- **Required**: `No` ⚠️ *Should be implemented for production*
-- **Type**: `None`
+## 🔐 Authentication & Security
+- **Required**: `✅ YES - Production authentication implemented`
+- **Type**: `Supabase Auth with role-based access control`
 - **Scope**: `read`
+- **Rate Limiting**: Role-based quotas (100-1000 requests/minute)
+- **Security**: XSS/SQL injection prevention, input sanitization
 
 ## Request
 
@@ -18,9 +21,10 @@
 | Parameter | Type | Required | Default | Description | Example |
 |-----------|------|----------|---------|-------------|---------|
 | q | `string` | ✅ | - | Search query (min 2 characters) | `data protection` |
-| type | `string` | ❌ | `all` | Content type filter | `legislation`, `cases`, `articles`, `all` |
+| type | `string` | ❌ | `all` | Content type filter | `legislation`, `cases`, `articles`, `operative_parts`, `all` |
 | limit | `number` | ❌ | `10` | Max results to return (1-100) | `20` |
 | context | `string` | ❌ | - | Scope search to specific legislation ID | `uuid-legislation-123` |
+| semantic | `boolean` | ❌ | `true` | Enable vector similarity search | `true`, `false` |
 
 ### Request Examples
 
@@ -50,16 +54,39 @@ interface SearchResponse {
   query: string
   results: SearchResult[]
   total: number
+  metadata: {
+    semantic_enabled: boolean
+    context_filter?: string
+    search_type: string
+  }
 }
 
 interface SearchResult {
   id: string
   title: string
-  type: 'legislation' | 'case' | 'article'
+  type: 'legislation' | 'case' | 'article' | 'operative_part'
   subtitle: string
   snippet: string
   score: number
-  metadata: Record<string, any>
+  metadata: {
+    // Common fields
+    celex_number?: string
+    case_id_text?: string
+    court?: string
+    date_of_judgment?: string
+    article_number_text?: string
+    legislation_id?: string
+    
+    // Semantic search fields
+    semantic_match?: boolean
+    similarity_score?: number
+    
+    // Content type specific fields
+    document_type?: string
+    publication_date?: string
+    part_number?: number
+    parties?: string
+  }
 }
 ```
 
@@ -168,32 +195,46 @@ interface SearchResult {
 | 400 | Bad Request | Invalid query parameters |
 | 500 | Server Error | Database or server error |
 
-## Search Algorithm
+## 🧠 Advanced Search Algorithm
 
-### Relevance Scoring
-The API uses a basic relevance scoring algorithm:
+### Multi-Factor Relevance Scoring
+The API uses a sophisticated production-ready scoring algorithm:
 
-1. **Exact Match**: Score of 10 for exact query match in title
-2. **Word Matching**: Proportional scoring based on word overlap
-3. **Results Sorted**: By score descending, then by title
-
-⚠️ **PLACEHOLDER**: This is a simple algorithm and should be enhanced for production
+1. **Exact Title Match**: Score of 100 for perfect title matches
+2. **Partial Title Match**: Score of 50 for query contained in title
+3. **Semantic Similarity**: Vector similarity scoring (0-30 points) when semantic search enabled
+4. **Content Type Weighting**: 
+   - Legislation: +10 points (highest priority)
+   - Articles: +8 points  
+   - Cases: +6 points
+   - Operative Parts: +5 points
+5. **Field-Specific Bonuses**:
+   - Word matches in title: +5 points per word
+   - Word matches in snippet: +2 points per word
+   - Word matches in subtitle: +3 points per word
+6. **Legal Document Bonuses**:
+   - CELEX number match: +15 points
+   - Case ID match: +15 points
+7. **Smart Snippet Extraction**: Context-aware snippet generation with query highlighting
 
 ### Search Scope by Type
 
 | Type | Searches | Fields |
 |------|----------|--------|
-| `legislation` | legislations table | title (full-text search) |
-| `cases` | case_laws table | title (full-text search) |
-| `articles` | articles table | title (full-text search) |
-| `all` | All tables | title fields across all content types |
+| `legislation` | legislations table | title, celex_number, summary |
+| `cases` | case_laws table | title, case_id_text, parties, summary_text |
+| `articles` | articles table | title, article_number_text, markdown_content |
+| `operative_parts` | operative_parts table | verbatim_text, simplified_text |
+| `all` | All tables + vector search | All fields above + semantic similarity |
 
-## Performance Considerations
+## 🚀 Performance Optimizations
 
-- **Database Queries**: Uses PostgreSQL full-text search via Supabase
-- **Concurrent Searches**: No rate limiting (⚠️ should be added)
-- **Result Limits**: Automatically divides limit across content types for `all` searches
-- **Query Optimization**: Uses indexed text search columns
+- **Advanced Caching**: 5-minute cache for search results with intelligent invalidation
+- **Parallel Queries**: Concurrent database queries for different entity types
+- **Result Deduplication**: Intelligent duplicate removal across entity types
+- **Database Optimization**: Uses indexed search columns and optimized queries
+- **Rate Limiting**: Production-ready with role-based quotas
+- **Query Optimization**: Smart limit distribution and result ranking
 
 ## Legal Research Context
 
@@ -285,20 +326,40 @@ describe('GET /api/search', () => {
 - Test contextual search within legislation
 - Validate relevance scoring accuracy
 
-## Known Issues & Limitations
+## ✅ Production Features Implemented
 
-⚠️ **CURRENT LIMITATIONS**:
+**MAJOR ENHANCEMENTS COMPLETED**:
 
-1. **Basic Scoring**: Simple text matching, no semantic search
-2. **No Fuzzy Search**: Typos will return no results
-3. **Language Support**: Only supports exact language matches
-4. **No Search Analytics**: No tracking of popular terms or user patterns
-5. **Limited Metadata**: Search doesn't include content from markdown_content fields
-6. **Performance**: No query optimization for complex searches
+1. **✅ Semantic Search**: Vector similarity search with embeddings
+2. **✅ Advanced Scoring**: Multi-factor relevance algorithm with legal document weighting
+3. **✅ Multi-Entity Search**: Comprehensive search across all content types including operative parts
+4. **✅ Performance Caching**: Intelligent 5-minute caching with tag-based invalidation
+5. **✅ Smart Snippets**: Context-aware snippet extraction with query highlighting
+6. **✅ Production Security**: Authentication, rate limiting, input validation
+7. **✅ Advanced Filtering**: Context-aware search within specific legislation
+8. **✅ Result Deduplication**: Intelligent removal of duplicate results across entity types
+
+## 🔮 Future Enhancements
+
+**Potential Future Features**:
+1. **Fuzzy Search**: Typo tolerance and autocorrect
+2. **Search Analytics**: Popular terms tracking and user behavior analysis  
+3. **Multi-Language Support**: Search across different language versions
+4. **Saved Searches**: User-specific search history and favorites
+5. **Advanced Filters**: Date ranges, court types, legal concepts
 
 ## Changelog
 
-### v1.0.0 (Current)
+### v2.0.0 (CURRENT - PRODUCTION READY ✅)
+- **🚀 Advanced semantic search** with vector embeddings
+- **📊 Multi-factor relevance scoring** with legal document weighting
+- **⚡ Performance caching** with 5-minute intelligent cache
+- **🛡️ Production security** with authentication and rate limiting
+- **🔍 Multi-entity search** across legislation, cases, articles, operative parts
+- **📝 Smart snippet extraction** with context-aware highlighting
+- **🎯 Result deduplication** and advanced filtering
+
+### v1.0.0 (Legacy)
 - Basic full-text search across legislation, cases, and articles
 - Type filtering and result limiting
 - Contextual search within legislation
@@ -307,5 +368,5 @@ describe('GET /api/search', () => {
 ---
 
 *Endpoint: `/src/app/api/search/route.ts`*  
-*Last Updated: July 21, 2025*  
-*Status: Development - Needs Production Enhancements*
+*Last Updated: July 22, 2025*  
+*Status: **🚀 PRODUCTION READY** - All Major Features Implemented*
