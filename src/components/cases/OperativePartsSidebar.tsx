@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, List, Eye, EyeOff } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { CaseViewerData, TableOfContentsItem } from '@/types/database'
 
@@ -49,6 +51,49 @@ export function OperativePartsSidebar({
     }
   }
 
+  // Clean markdown formatting for display
+  const cleanMarkdownForDisplay = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markers for plain text display
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic markers
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Extract link text
+      .trim()
+  }
+
+  // Render markdown for operative parts
+  const renderOperativePartText = (text: string) => {
+    if (!text) return 'No text available'
+    
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => (
+            <span className="inline">{children}</span>
+          ),
+          strong: ({ children }) => (
+            <strong className="font-semibold">{children}</strong>
+          ),
+          em: ({ children }) => (
+            <em className="italic">{children}</em>
+          ),
+          a: ({ href, children }) => (
+            <a 
+              href={href} 
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          )
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    )
+  }
+
   return (
     <div className={`space-y-6 ${isMobile ? '' : 'sticky top-6 max-h-screen overflow-y-auto'}`}>
       {/* Table of Contents */}
@@ -79,7 +124,7 @@ export function OperativePartsSidebar({
                     item.level === 2 ? 'ml-4 text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'
                   }`}
                 >
-                  {item.title}
+                  {cleanMarkdownForDisplay(item.title)}
                 </button>
               ))
             ) : (
@@ -165,10 +210,11 @@ export function OperativePartsSidebar({
 
                     {operativePartsVisible && (
                       <div className="border-l-4 border-blue-200 dark:border-blue-800 pl-3 py-2 bg-blue-50 dark:bg-blue-950/20 rounded-r text-sm">
-                        {simplified && operativePart.simplified_text
-                          ? operativePart.simplified_text
-                          : operativePart.verbatim_text || 'No text available'
-                        }
+                        {renderOperativePartText(
+                          simplified && operativePart.simplified_text
+                            ? operativePart.simplified_text
+                            : operativePart.verbatim_text || ''
+                        )}
                       </div>
                     )}
                   </div>

@@ -31,7 +31,10 @@ export function ReportBuilder() {
         const response = await fetch('/api/legislations')
         if (response.ok) {
           const data = await response.json()
-          setLegislations(data)
+          console.log('Fetched legislations:', data) // Debug log
+          setLegislations(data || [])
+        } else {
+          console.error('Failed to fetch legislations:', response.status, response.statusText)
         }
       } catch (error) {
         console.error('Error fetching legislations:', error)
@@ -47,6 +50,7 @@ export function ReportBuilder() {
       return
     }
 
+    console.log('Generating report with config:', config) // Debug log
     setIsGenerating(true)
     
     try {
@@ -59,15 +63,18 @@ export function ReportBuilder() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate report')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Report generation failed:', response.status, errorData)
+        throw new Error(errorData.error || `Server error: ${response.status}`)
       }
 
       const data = await response.json()
+      console.log('Report generated successfully:', data) // Debug log
       setReportData(data)
       setStep('preview')
     } catch (error) {
       console.error('Error generating report:', error)
-      alert('Failed to generate report. Please try again.')
+      alert(`Failed to generate report: ${error.message}`)
     } finally {
       setIsGenerating(false)
     }

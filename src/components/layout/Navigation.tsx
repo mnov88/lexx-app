@@ -13,7 +13,7 @@ const navigationItems = [
   { href: '/', label: 'Home', icon: Search, public: true },
   { href: '/legislation', label: 'Legislation', icon: Scale, public: true },
   { href: '/cases', label: 'Case law', icon: FileText, public: true },
-  { href: '/reports', label: 'Reports', icon: Printer, requiresAuth: true },
+  { href: '/reports', label: 'Reports', icon: Printer, public: true }, // Temporarily public for testing
   { href: '/chat', label: 'AI assistant', icon: MessageSquare, requiresAuth: true },
 ]
 
