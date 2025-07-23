@@ -21,7 +21,13 @@ export function Navigation() {
   const pathname = usePathname()
   const { isAuthenticated, profile, signOut, loading } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Handle hydration
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -49,7 +55,7 @@ export function Navigation() {
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               {navigationItems
-                .filter(item => item.public || isAuthenticated)
+                .filter(item => item.public || (isClient && !loading && isAuthenticated))
                 .map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href
@@ -75,7 +81,7 @@ export function Navigation() {
           
           {/* User Controls & Theme */}
           <div className="flex items-center space-x-4">
-            {!loading && (
+            {isClient && !loading && (
               <>
                 {isAuthenticated ? (
                   <div className="relative" ref={menuRef}>

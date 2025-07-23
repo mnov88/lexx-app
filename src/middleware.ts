@@ -16,14 +16,15 @@ const routeProtection = {
     '/api/legislations/:path*',
     '/api/articles/:path*',
     '/api/cases/:path*',
+    '/api/reports/:path*', // Temporarily public for testing
     '/api/test-db'
   ],
   
   // Protected routes (authentication required)
   protected: [
     // '/reports', // Temporarily public for testing
-    '/chat',
-    '/api/reports/:path*'
+    '/chat'
+    // '/api/reports/:path*' // Temporarily public for testing
   ],
   
   // Admin-only routes
