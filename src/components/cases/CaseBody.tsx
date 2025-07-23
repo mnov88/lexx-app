@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { ArrowLeft, Calendar, ExternalLink } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { CaseViewerData } from '@/types/database'
 
 interface CaseBodyProps {
@@ -49,28 +51,74 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
   const renderMarkdownSection = (content: string) => {
     if (!content) return null
     
-    // Basic markdown rendering for legal documents
-    return content
+    // Clean up escaped characters in legal text
+    const cleanContent = content
       .replace(/^(\d+)\\\. /gm, '$1. ') // Fix escaped numbers
       .replace(/\\\[/g, '[') // Fix escaped brackets
       .replace(/\\\]/g, ']')
-      .split('\n\n')
-      .map((paragraph, index) => {
-        if (paragraph.startsWith('###')) {
-          return (
-            <h4 key={index} className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-              {paragraph.replace('### ', '')}
+    
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h3: ({ children }) => (
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+              {children}
             </h4>
+          ),
+          h4: ({ children }) => (
+            <h5 className="text-base font-semibold text-gray-900 dark:text-white mt-4 mb-2">
+              {children}
+            </h5>
+          ),
+          p: ({ children }) => (
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+              {children}
+            </p>
+          ),
+          strong: ({ children }) => (
+            <strong className="font-semibold text-gray-900 dark:text-white">
+              {children}
+            </strong>
+          ),
+          em: ({ children }) => (
+            <em className="italic text-gray-800 dark:text-gray-200">
+              {children}
+            </em>
+          ),
+          a: ({ href, children }) => (
+            <a 
+              href={href} 
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          ),
+          ul: ({ children }) => (
+            <ul className="list-disc list-inside mb-4 text-gray-700 dark:text-gray-300">
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="list-decimal list-inside mb-4 text-gray-700 dark:text-gray-300">
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => (
+            <li className="mb-1 leading-relaxed">{children}</li>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-blue-500 pl-4 my-4 italic text-gray-600 dark:text-gray-400">
+              {children}
+            </blockquote>
           )
-        }
-        if (paragraph.trim() === '') return null
-        return (
-          <p key={index} className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-            {paragraph}
-          </p>
-        )
-      })
-      .filter(Boolean)
+        }}
+      >
+        {cleanContent}
+      </ReactMarkdown>
+    )
   }
 
   const content = parseMarkdownContent(caseData.plaintext_content || '')

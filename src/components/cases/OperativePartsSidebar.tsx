@@ -23,15 +23,24 @@ export function OperativePartsSidebar({
   
   const { toggleOperativeParts, toggleOperativePartsMode } = useThemeStore()
 
-  // Mock ToC data - in a real implementation, this would be extracted from case content
-  const mockTocItems: TableOfContentsItem[] = [
-    { id: 'background', title: 'Background to the dispute', level: 1, href: '#background' },
-    { id: 'questions', title: 'Questions referred for preliminary ruling', level: 1, href: '#questions' },
-    { id: 'question-1', title: 'The first question', level: 2, href: '#question-1' },
-    { id: 'question-2', title: 'The second question', level: 2, href: '#question-2' },
-    { id: 'costs', title: 'Costs', level: 1, href: '#costs' },
-    { id: 'operative-part', title: 'Operative part', level: 1, href: '#operative-part' }
-  ]
+  // Generate ToC from real case content
+  const generateTableOfContents = (content: string): TableOfContentsItem[] => {
+    if (!content) return []
+    
+    const headers = content.match(/^## .+$/gm) || []
+    return headers.map(header => {
+      const title = header.replace('## ', '')
+      const id = title.toLowerCase().replace(/\s+/g, '-')
+      return {
+        id,
+        title,
+        level: 1,
+        href: `#${id}`
+      }
+    })
+  }
+
+  const tocItems = generateTableOfContents(caseData.plaintext_content || '')
 
   const scrollToSection = (href: string) => {
     const element = document.querySelector(href)
@@ -61,17 +70,23 @@ export function OperativePartsSidebar({
 
         {tocExpanded && (
           <nav className="space-y-1">
-            {mockTocItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => scrollToSection(item.href)}
-                className={`block w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-                  item.level === 2 ? 'ml-4 text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'
-                }`}
-              >
-                {item.title}
-              </button>
-            ))}
+            {tocItems.length > 0 ? (
+              tocItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => scrollToSection(item.href)}
+                  className={`block w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                    item.level === 2 ? 'ml-4 text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {item.title}
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 px-2 py-1">
+                No table of contents available for this case.
+              </p>
+            )}
           </nav>
         )}
       </div>

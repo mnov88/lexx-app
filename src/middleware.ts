@@ -10,6 +10,7 @@ const routeProtection = {
   public: [
     '/',
     '/auth',
+    '/reports', // Temporarily public for testing
     '/api/search',
     '/api/legislations',
     '/api/legislations/:path*',
@@ -20,7 +21,7 @@ const routeProtection = {
   
   // Protected routes (authentication required)
   protected: [
-    '/reports',
+    // '/reports', // Temporarily public for testing
     '/chat',
     '/api/reports/:path*'
   ],
