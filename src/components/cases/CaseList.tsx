@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { Calendar, ExternalLink } from 'lucide-react'
 import { CaseLaw } from '@/types/database'
 import { VirtualizedList } from '@/components/ui/VirtualizedList'
@@ -25,6 +26,8 @@ export function CaseList({
   hasMore = false,
   isLoadingMore = false
 }: CaseListProps) {
+  const [caseArticles, setCaseArticles] = useState<Record<string, any[]>>({})
+  
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -33,6 +36,43 @@ export function CaseList({
       day: 'numeric'
     })
   }
+
+  // Fetch articles for cases when showArticleChips is enabled
+  useEffect(() => {
+    if (!showArticleChips || cases.length === 0) return
+
+    const fetchArticlesForCases = async () => {
+      try {
+        const caseIds = cases.map(c => c.id)
+        const response = await fetch('/api/cases/articles/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ caseIds })
+        })
+        
+        if (response.ok) {
+          const articlesMap = await response.json()
+          setCaseArticles(articlesMap)
+        } else {
+          console.error('Bulk API failed:', response.status, response.statusText)
+          // Fallback to empty articles
+          const emptyMap: Record<string, any[]> = {}
+          cases.forEach(c => { emptyMap[c.id] = [] })
+          setCaseArticles(emptyMap)
+        }
+      } catch (error) {
+        console.error('Error fetching articles:', error)
+        // Fallback to empty articles
+        const emptyMap: Record<string, any[]> = {}
+        cases.forEach(c => { emptyMap[c.id] = [] })
+        setCaseArticles(emptyMap)
+      }
+    }
+
+    fetchArticlesForCases()
+  }, [cases, showArticleChips])
 
   if (cases.length === 0) {
     return (
@@ -89,16 +129,18 @@ export function CaseList({
                   </p>
                 )}
 
-                {/* Article Chips - placeholder for now */}
-                {showArticleChips && (
+                {/* Article Chips */}
+                {showArticleChips && caseArticles[case_law.id] && caseArticles[case_law.id].length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {/* TODO: Replace with actual article data */}
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                      Article 6
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                      Article 7
-                    </span>
+                    {caseArticles[case_law.id].map((article: any) => (
+                      <span 
+                        key={article.id}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
+                        title={article.title || 'No title'}
+                      >
+                        {article.article_number_text}
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>

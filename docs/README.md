@@ -8,10 +8,13 @@ This directory contains comprehensive documentation for the Lexx EU Legal Resear
 docs/
 ├── README.md                 # This file - documentation overview
 ├── COMPONENT_TEMPLATE.md     # Template for documenting components
-└── components/              # Component-specific documentation
-    ├── LazyImage.md         # Example component documentation
-    ├── CaseInfoCard.md      # (to be created)
-    ├── SearchBar.md         # (to be created)
+└── components/               # Component-specific documentation
+    ├── LazyImage.md          # Documented
+    ├── CaseViewer.md         # Documented
+    ├── ArticleViewer.md      # Documented
+    ├── SearchBar.md          # Documented
+    ├── ReportBuilder.md      # Documented
+    ├── CaseInfoCard.md       # Documented
     └── ...
 ```
 

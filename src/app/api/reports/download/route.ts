@@ -338,7 +338,7 @@ function generateHTMLReport(config: ReportConfig, reportData: ReportData, forPri
 
                                     ${config.includeOperativeParts && caseData.operative_parts.length > 0 ? `
                                         <div class="operative-parts">
-                                            <strong>Operative Parts:</strong>
+                                            <strong>Relevant Operative Parts (interpreting this article):</strong>
                                             ${caseData.operative_parts.map(part => `
                                                 <div class="operative-part">
                                                     <strong>Part ${part.part_number}:</strong>

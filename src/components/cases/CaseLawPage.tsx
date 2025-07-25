@@ -18,24 +18,88 @@ export function CaseLawPage() {
   // Filter states
   const [selectedLegislation, setSelectedLegislation] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<string | null>(null)
+  
+  // Pagination states
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 25,
+    hasNext: false,
+    hasPrev: false
+  })
+  const [currentOffset, setCurrentOffset] = useState(0)
+
+  const fetchCases = async (offset = 0, legislationId?: string | null) => {
+    try {
+      const params = new URLSearchParams({
+        limit: '25',
+        offset: offset.toString()
+      })
+      
+      let url = '/api/cases'
+      if (legislationId) {
+        url = `/api/legislations/${legislationId}/cases`
+      }
+      
+      const response = await fetch(`${url}?${params}`)
+      if (response.ok) {
+        const result = await response.json()
+        
+        // Handle both paginated and non-paginated responses
+        if (result.data && result.pagination) {
+          setCases(result.data)
+          setPagination(result.pagination)
+        } else {
+          setCases(result.data || result)
+          // For non-paginated responses, set basic pagination
+          setPagination({
+            currentPage: 1,
+            totalPages: 1,
+            totalItems: (result.data || result).length,
+            itemsPerPage: 25,
+            hasNext: false,
+            hasPrev: false
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching cases:', error)
+    }
+  }
+
+  const fetchCasesByArticle = async (articleId: string) => {
+    try {
+      const response = await fetch(`/api/articles/${articleId}/cases`)
+      if (response.ok) {
+        const result = await response.json()
+        setCases(result)
+        
+        // Set basic pagination for article-filtered results (no pagination from API)
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: result.length,
+          itemsPerPage: 25,
+          hasNext: false,
+          hasPrev: false
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching cases by article:', error)
+    }
+  }
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [casesResponse, legislationsResponse] = await Promise.all([
-          fetch('/api/cases'),
-          fetch('/api/legislations')
-        ])
-
-        if (casesResponse.ok) {
-          const casesResult = await casesResponse.json()
-          setCases(casesResult.data || casesResult)
-        }
-
+        const legislationsResponse = await fetch('/api/legislations')
         if (legislationsResponse.ok) {
           const legislationsData = await legislationsResponse.json()
           setLegislations(legislationsData)
         }
+        
+        await fetchCases(0)
       } catch (error) {
         console.error('Error fetching initial data:', error)
       } finally {
@@ -49,32 +113,33 @@ export function CaseLawPage() {
   const handleLegislationFilter = async (legislationId: string | null) => {
     setSelectedLegislation(legislationId)
     setSelectedArticle(null) // Reset article filter
+    setCurrentOffset(0) // Reset to first page
     
-    if (!legislationId) {
-      // Show all cases
-      const response = await fetch('/api/cases')
-      if (response.ok) {
-        const data = await response.json()
-        setCases(data.data || data)
-      }
-    } else {
-      // Filter by legislation
-      const response = await fetch(`/api/legislations/${legislationId}/cases`)
-      if (response.ok) {
-        const data = await response.json()
-        setCases(data.data || data)
-      }
-    }
+    await fetchCases(0, legislationId)
   }
 
-  const handleArticleFilter = (articleId: string | null) => {
+  const handleArticleFilter = async (articleId: string | null) => {
     setSelectedArticle(articleId)
-    // TODO: Implement article-specific filtering
-    // This would filter cases further by specific articles
+    setCurrentOffset(0) // Reset to first page
+    
+    if (articleId) {
+      // Fetch cases that interpret this specific article
+      await fetchCasesByArticle(articleId)
+    } else {
+      // If no article selected, fall back to legislation filter or all cases
+      await fetchCases(0, selectedLegislation)
+    }
   }
 
   const toggleGrouping = () => {
     setGroupByArticle(!groupByArticle)
+  }
+
+  const handlePageChange = async (newOffset: number) => {
+    setCurrentOffset(newOffset)
+    setIsLoading(true)
+    await fetchCases(newOffset, selectedLegislation)
+    setIsLoading(false)
   }
 
   if (isLoading) {
@@ -138,7 +203,15 @@ export function CaseLawPage() {
         </div>
 
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          {cases.length} case{cases.length !== 1 ? 's' : ''} found
+          {pagination.totalItems > 0 
+            ? `${pagination.totalItems} case${pagination.totalItems !== 1 ? 's' : ''} found`
+            : 'No cases found'
+          }
+          {pagination.totalPages > 1 && (
+            <span className="ml-2">
+              (Page {pagination.currentPage} of {pagination.totalPages})
+            </span>
+          )}
         </div>
       </div>
 
@@ -162,7 +235,89 @@ export function CaseLawPage() {
           {groupByArticle && selectedLegislation ? (
             <GroupedCaseView legislationId={selectedLegislation} />
           ) : (
-            <CaseList cases={cases} showArticleChips={Boolean(selectedLegislation)} />
+            <div className="space-y-6">
+              <CaseList cases={cases} showArticleChips={Boolean(selectedLegislation)} />
+              
+              {/* Pagination Controls */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button
+                      onClick={() => handlePageChange(currentOffset - pagination.itemsPerPage)}
+                      disabled={!pagination.hasPrev}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(currentOffset + pagination.itemsPerPage)}
+                      disabled={!pagination.hasNext}
+                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Showing{' '}
+                        <span className="font-medium">{currentOffset + 1}</span>
+                        {' '}to{' '}
+                        <span className="font-medium">
+                          {Math.min(currentOffset + pagination.itemsPerPage, pagination.totalItems)}
+                        </span>
+                        {' '}of{' '}
+                        <span className="font-medium">{pagination.totalItems}</span>
+                        {' '}results
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <button
+                          onClick={() => handlePageChange(currentOffset - pagination.itemsPerPage)}
+                          disabled={!pagination.hasPrev}
+                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Previous</span>
+                          ←
+                        </button>
+                        
+                        {/* Page numbers */}
+                        {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => {
+                          const pageNum = i + 1
+                          const offset = (pageNum - 1) * pagination.itemsPerPage
+                          const isCurrent = pagination.currentPage === pageNum
+                          
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => handlePageChange(offset)}
+                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                isCurrent
+                                  ? 'z-10 bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400'
+                                  : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          )
+                        })}
+                        
+                        <button
+                          onClick={() => handlePageChange(currentOffset + pagination.itemsPerPage)}
+                          disabled={!pagination.hasNext}
+                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Next</span>
+                          →
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -32,7 +32,13 @@ export function OperativePartsSidebar({
     const headers = content.match(/^## .+$/gm) || []
     return headers.map(header => {
       const title = header.replace('## ', '')
-      const id = title.toLowerCase().replace(/\s+/g, '-')
+      // Generate valid CSS selector ID by removing/replacing invalid characters
+      const id = title
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Remove all non-word, non-space, non-hyphen characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+        .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
       return {
         id,
         title,
@@ -45,9 +51,13 @@ export function OperativePartsSidebar({
   const tocItems = generateTableOfContents(caseData.plaintext_content || '')
 
   const scrollToSection = (href: string) => {
-    const element = document.querySelector(href)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
+    try {
+      const element = document.querySelector(href)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+      }
+    } catch (error) {
+      console.warn('Invalid CSS selector for scrolling:', href, error)
     }
   }
 

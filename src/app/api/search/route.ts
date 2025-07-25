@@ -92,14 +92,38 @@ async function searchHandler(request: NextRequest, validatedData: any) {
 
 async function searchLegislation(query: string, type: string | undefined, limit: number, results: any[]) {
   if (!type || type === 'all' || type === 'legislation') {
+    // Optimize: Use full-text search index (idx_legislations_title_fts) instead of ILIKE
     const { data: legislations, error } = await supabase
       .from('legislations')
       .select('id, title, celex_number, summary, document_type, publication_date')
-      .or(`title.ilike.%${query}%,celex_number.ilike.%${query}%,summary.ilike.%${query}%`)
+      .textSearch('title', query, { type: 'websearch' })
       .order('publication_date', { ascending: false })
       .limit(type === 'legislation' ? limit : Math.floor(limit / 4))
 
-    if (!error && legislations) {
+    // Fallback to ILIKE if full-text search returns no results
+    if ((!legislations || legislations.length === 0) && !error) {
+      const { data: fallbackResults, error: fallbackError } = await supabase
+        .from('legislations')
+        .select('id, title, celex_number, summary, document_type, publication_date')
+        .or(`title.ilike.%${query}%,celex_number.ilike.%${query}%,summary.ilike.%${query}%`)
+        .order('publication_date', { ascending: false })
+        .limit(type === 'legislation' ? limit : Math.floor(limit / 4))
+      
+      if (!fallbackError && fallbackResults) {
+        results.push(...fallbackResults.map(item => ({
+          id: item.id,
+          title: item.title,
+          type: 'legislation' as const,
+          subtitle: item.celex_number,
+          snippet: item.summary?.substring(0, 200) + '...' || 'EU Legislation',
+          metadata: { 
+            document_type: item.document_type,
+            publication_date: item.publication_date,
+            celex_number: item.celex_number
+          }
+        })))
+      }
+    } else if (!error && legislations) {
       results.push(...legislations.map(item => ({
         id: item.id,
         title: item.title,
@@ -118,28 +142,65 @@ async function searchLegislation(query: string, type: string | undefined, limit:
 
 async function searchCases(query: string, type: string | undefined, limit: number, context: string | undefined, results: any[]) {
   if (!type || type === 'all' || type === 'cases') {
+    // Optimize: Use GIN indices (idx_case_laws_title_gin, idx_case_laws_parties_gin) and RPC if available
+    let caseIds: string[] | null = null
+    
+    if (context) {
+      // Optimize context filtering with RPC function if available
+      try {
+        const { data: contextCaseIds, error: rpcError } = await supabase
+          .rpc('get_cases_interpreting_legislation', { 
+            legislation_id: context,
+            result_limit: limit * 2, // Get more to account for filtering
+            result_offset: 0
+          })
+        
+        if (!rpcError && contextCaseIds) {
+          caseIds = contextCaseIds
+        }
+      } catch (rpcError) {
+        console.log('RPC not available, using fallback query')
+      }
+      
+      // Fallback: Use optimized query with proper indices
+      if (!caseIds) {
+        const { data: operativePartData } = await supabase
+          .from('operative_part_interprets_article')
+          .select(`
+            operative_part:operative_parts!inner(case_law_id),
+            article:articles!inner(legislation_id)
+          `)
+          .eq('article.legislation_id', context)
+        
+        if (operativePartData && operativePartData.length > 0) {
+          caseIds = [...new Set(operativePartData.map((item: any) => item.operative_part.case_law_id))]
+        } else {
+          caseIds = [] // No cases found
+        }
+      }
+    }
+
+    // Use full-text search indices where available
     let casesQuery = supabase
       .from('case_laws')
       .select('id, title, case_id_text, parties, summary_text, court, date_of_judgment')
-      .or(`title.ilike.%${query}%,case_id_text.ilike.%${query}%,parties.ilike.%${query}%,summary_text.ilike.%${query}%`)
+    
+    // Apply text search using GIN indices
+    if (query.includes(' ')) {
+      // Multi-word query - use full-text search
+      casesQuery = casesQuery.textSearch('title', query, { type: 'websearch' })
+    } else {
+      // Single word - use GIN index optimized search
+      casesQuery = casesQuery.or(`title.ilike.%${query}%,case_id_text.ilike.%${query}%,parties.ilike.%${query}%,summary_text.ilike.%${query}%`)
+    }
 
-    // Context filtering for cases related to specific legislation
-    if (context) {
-      // Get case IDs that interpret articles from specific legislation
-      const { data: caseIds } = await supabase
-        .from('case_law_interprets_article')
-        .select(`
-          case_law_id,
-          article:articles!inner(legislation_id)
-        `)
-        .eq('article.legislation_id', context)
-      
-      if (caseIds && caseIds.length > 0) {
-        casesQuery = casesQuery.in('id', caseIds.map(item => item.case_law_id))
-      } else {
-        // No cases found for this legislation, return empty
-        casesQuery = casesQuery.eq('id', 'none')
+    // Apply context filter if available
+    if (caseIds !== null) {
+      if (caseIds.length === 0) {
+        // No cases found for this legislation
+        return
       }
+      casesQuery = casesQuery.in('id', caseIds)
     }
 
     const { data: cases, error } = await casesQuery

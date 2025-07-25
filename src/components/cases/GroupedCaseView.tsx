@@ -32,13 +32,29 @@ export function GroupedCaseView({ legislationId }: GroupedCaseViewProps) {
 
         const articles = await articlesResponse.json()
 
-        // For each article, fetch cases that interpret it
-        const groupedPromises = articles.map(async (article: Article) => {
-          try {
-            const casesResponse = await fetch(`/api/articles/${article.id}/cases`)
-            if (!casesResponse.ok) return null
+        // Fetch cases for all articles using bulk API
+        const articleIds = articles.map((article: any) => article.id)
+        
+        try {
+          const bulkResponse = await fetch('/api/articles/cases/bulk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ articleIds })
+          })
 
-            const casesData = await casesResponse.json()
+          if (!bulkResponse.ok) {
+            console.error('Bulk API failed:', bulkResponse.status, bulkResponse.statusText)
+            setGroupedData([])
+            return
+          }
+
+          const casesByArticle = await bulkResponse.json()
+          
+          // Transform results
+          const results = articles.map((article: any) => {
+            const casesData = casesByArticle[article.id] || []
             
             if (casesData.length === 0) return null
 
@@ -53,13 +69,13 @@ export function GroupedCaseView({ legislationId }: GroupedCaseViewProps) {
               article,
               cases: transformedCases
             }
-          } catch (error) {
-            console.error(`Error fetching cases for article ${article.id}:`, error)
-            return null
-          }
-        })
-
-        const results = await Promise.all(groupedPromises)
+          })
+        } catch (error) {
+          console.error('Error fetching grouped cases:', error)
+          setGroupedData([])
+          return
+        }
+        
         const validResults = results.filter(Boolean) as GroupedCaseData[]
         
         // Sort by article number

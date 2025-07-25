@@ -31,13 +31,22 @@ export function ReportConfiguration({
       }
 
       try {
-        const articlePromises = config.legislations.map(legislationId =>
-          fetch(`/api/legislations/${legislationId}/articles`).then(res => res.json())
-        )
-        
-        const articlesResults = await Promise.all(articlePromises)
-        const allArticles = articlesResults.flat()
-        setAvailableArticles(allArticles)
+        const response = await fetch('/api/legislations/articles/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ legislationIds: config.legislations })
+        })
+
+        if (response.ok) {
+          const articlesByLegislation = await response.json()
+          const allArticles = Object.values(articlesByLegislation).flat()
+          setAvailableArticles(allArticles)
+        } else {
+          console.error('Bulk articles API failed:', response.status)
+          setAvailableArticles([])
+        }
       } catch (error) {
         console.error('Error fetching articles:', error)
         setAvailableArticles([])

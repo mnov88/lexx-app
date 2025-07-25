@@ -74,7 +74,8 @@ export function ReportBuilder() {
       setStep('preview')
     } catch (error) {
       console.error('Error generating report:', error)
-      alert(`Failed to generate report: ${error.message}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to generate report: ${errorMessage}`)
     } finally {
       setIsGenerating(false)
     }

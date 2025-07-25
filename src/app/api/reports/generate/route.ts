@@ -8,10 +8,17 @@ const supabase = createClient<Database>(
 )
 
 export async function POST(request: NextRequest) {
+  let config: ReportConfig | undefined
+  
   try {
-    const config: ReportConfig = await request.json()
+    config = await request.json()
 
     console.log('Report generation request:', config) // Debug log
+    
+    // Validate config
+    if (!config) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
     
     // For testing - if no selection, use first legislation
     if (!config.legislations.length && !config.articles.length) {
@@ -73,26 +80,57 @@ export async function POST(request: NextRequest) {
         
         const processedArticles: ArticleReportData[] = []
         
-        for (const article of articles) {
-          // Fetch cases interpreting this article
-          const { data: interpretingCases, error: casesError } = await supabase
-            .from('case_law_interprets_article')
-            .select(`
-              case_law:case_laws(
-                *,
-                operative_parts(*)
-              )
-            `)
-            .eq('article_id', article.id)
+        // Optimize: Batch fetch all operative parts for all articles at once to avoid N+1 queries
+        const articleIds = articles.map(a => a.id)
+        const { data: allInterpretingOperativeParts, error: operativePartsError } = await supabase
+          .from('operative_part_interprets_article')
+          .select(`
+            article_id,
+            operative_part:operative_parts(
+              *,
+              case_law:case_laws(*)
+            )
+          `)
+          .in('article_id', articleIds)
 
-          if (casesError) {
-            console.error('Error fetching interpreting cases:', casesError)
-            continue
+        if (operativePartsError) {
+          console.error('Error fetching interpreting operative parts:', operativePartsError)
+          continue
+        }
+
+        // Group operative parts by article for processing
+        const operativePartsByArticle = new Map<string, any[]>()
+        allInterpretingOperativeParts?.forEach((item: any) => {
+          if (!operativePartsByArticle.has(item.article_id)) {
+            operativePartsByArticle.set(item.article_id, [])
           }
+          operativePartsByArticle.get(item.article_id)!.push(item)
+        })
 
-          const cases: CaseReportData[] = (interpretingCases || []).map((item: any) => ({
-            ...item.case_law,
-            operative_parts: item.case_law.operative_parts || []
+        for (const article of articles) {
+          const interpretingOperativeParts = operativePartsByArticle.get(article.id) || []
+
+          // Group operative parts by case law
+          const casesByOperativeParts = new Map<string, any>()
+          const operativePartsByCase = new Map<string, any[]>()
+          
+          for (const item of interpretingOperativeParts || []) {
+            const operativePart = item.operative_part as any
+            if (!operativePart?.case_law) continue
+            const caseLaw = operativePart.case_law
+            
+            if (!casesByOperativeParts.has(caseLaw.id)) {
+              casesByOperativeParts.set(caseLaw.id, caseLaw)
+              operativePartsByCase.set(caseLaw.id, [])
+            }
+            
+            operativePartsByCase.get(caseLaw.id)!.push(operativePart)
+          }
+          
+          // Create cases with only the relevant operative parts
+          const cases: CaseReportData[] = Array.from(casesByOperativeParts.entries()).map(([caseId, caseLaw]) => ({
+            ...caseLaw,
+            operative_parts: operativePartsByCase.get(caseId) || []
           }))
 
           processedArticles.push({
@@ -142,26 +180,57 @@ export async function POST(request: NextRequest) {
 
       const processedArticles: ArticleReportData[] = []
 
-      for (const article of allArticles || []) {
-        // Fetch cases interpreting this article
-        const { data: interpretingCases, error: casesError } = await supabase
-          .from('case_law_interprets_article')
-          .select(`
-            case_law:case_laws(
-              *,
-              operative_parts(*)
-            )
-          `)
-          .eq('article_id', article.id)
+      // Optimize: Batch fetch all operative parts for all articles in legislation to avoid N+1 queries
+      const allArticleIds = (allArticles || []).map(a => a.id)
+      const { data: allLegislationOperativeParts, error: operativePartsError } = await supabase
+        .from('operative_part_interprets_article')
+        .select(`
+          article_id,
+          operative_part:operative_parts(
+            *,
+            case_law:case_laws(*)
+          )
+        `)
+        .in('article_id', allArticleIds)
 
-        if (casesError) {
-          console.error('Error fetching interpreting cases:', casesError)
-          continue
+      if (operativePartsError) {
+        console.error('Error fetching interpreting operative parts:', operativePartsError)
+        continue
+      }
+
+      // Group operative parts by article for processing
+      const legislationOperativePartsByArticle = new Map<string, any[]>()
+      allLegislationOperativeParts?.forEach((item: any) => {
+        if (!legislationOperativePartsByArticle.has(item.article_id)) {
+          legislationOperativePartsByArticle.set(item.article_id, [])
         }
+        legislationOperativePartsByArticle.get(item.article_id)!.push(item)
+      })
 
-        const cases: CaseReportData[] = (interpretingCases || []).map((item: any) => ({
-          ...item.case_law,
-          operative_parts: item.case_law.operative_parts || []
+      for (const article of allArticles || []) {
+        const interpretingOperativeParts = legislationOperativePartsByArticle.get(article.id) || []
+
+        // Group operative parts by case law
+        const casesByOperativeParts = new Map<string, any>()
+        const operativePartsByCase = new Map<string, any[]>()
+        
+        for (const item of interpretingOperativeParts || []) {
+          const operativePart = item.operative_part as any
+          if (!operativePart?.case_law) continue
+          const caseLaw = operativePart.case_law
+          
+          if (!casesByOperativeParts.has(caseLaw.id)) {
+            casesByOperativeParts.set(caseLaw.id, caseLaw)
+            operativePartsByCase.set(caseLaw.id, [])
+          }
+          
+          operativePartsByCase.get(caseLaw.id)!.push(operativePart)
+        }
+        
+        // Create cases with only the relevant operative parts
+        const cases: CaseReportData[] = Array.from(casesByOperativeParts.entries()).map(([caseId, caseLaw]) => ({
+          ...caseLaw,
+          operative_parts: operativePartsByCase.get(caseId) || []
         }))
 
         processedArticles.push({
@@ -197,6 +266,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error generating report:', error)
+    
+    // Return error response if config is not available
+    if (!config) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
     
     // Return a simple test report for debugging
     const testReportData: ReportData = {

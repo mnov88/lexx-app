@@ -42,10 +42,20 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
     if (!content) return []
     
     const headers = content.match(/^## .+$/gm) || []
-    return headers.map(header => ({
-      title: header.replace('## ', ''),
-      id: header.replace('## ', '').toLowerCase().replace(/\s+/g, '-')
-    }))
+    return headers.map(header => {
+      const title = header.replace('## ', '')
+      // Generate valid CSS selector ID by removing/replacing invalid characters
+      const id = title
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Remove all non-word, non-space, non-hyphen characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+        .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
+      return {
+        title,
+        id
+      }
+    })
   }
 
   const renderMarkdownSection = (content: string) => {
@@ -192,8 +202,16 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
           <div className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed">
             {content ? (
               // Render actual case content from plaintext
-              Object.entries(content).map(([sectionTitle, sectionContent]) => (
-                <section key={sectionTitle} id={sectionTitle.replace(/\s+/g, '-')} className="mb-8">
+              Object.entries(content).map(([sectionTitle, sectionContent]) => {
+                // Generate valid CSS selector ID matching the ToC logic
+                const sectionId = sectionTitle
+                  .toLowerCase()
+                  .replace(/[^\w\s-]/g, '') // Remove all non-word, non-space, non-hyphen characters
+                  .replace(/\s+/g, '-') // Replace spaces with hyphens
+                  .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+                  .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
+                return (
+                <section key={sectionTitle} id={sectionId} className="mb-8">
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                     {sectionTitle === 'parties' ? 'Parties' :
                      sectionTitle === 'grounds' ? 'Grounds' :
@@ -204,7 +222,8 @@ export function CaseBody({ caseData, isMobile = false }: CaseBodyProps) {
                     {renderMarkdownSection(sectionContent)}
                   </div>
                 </section>
-              ))
+                )
+              })
             ) : (
               // Fallback content when no plaintext is available
               <>
