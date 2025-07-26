@@ -17,7 +17,7 @@ export function CaseLawPage() {
   
   // Filter states
   const [selectedLegislation, setSelectedLegislation] = useState<string | null>(null)
-  const [selectedArticle, setSelectedArticle] = useState<string | null>(null)
+  const [selectedArticles, setSelectedArticles] = useState<string[]>([])
   
   // Pagination states
   const [pagination, setPagination] = useState({
@@ -68,25 +68,61 @@ export function CaseLawPage() {
     }
   }
 
-  const fetchCasesByArticle = async (articleId: string) => {
+  const fetchCasesByArticles = async (articleIds: string[]) => {
     try {
-      const response = await fetch(`/api/articles/${articleId}/cases`)
+      const response = await fetch('/api/articles/cases/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ articleIds })
+      })
+      
       if (response.ok) {
-        const result = await response.json()
-        setCases(result)
+        const casesByArticle = await response.json()
         
-        // Set basic pagination for article-filtered results (no pagination from API)
+        // Combine cases from selected articles, merging operative parts for the same case
+        const allCases = new Map()
+        articleIds.forEach(articleId => {
+          const articleCases = casesByArticle[articleId] || []
+          articleCases.forEach((caseData: any) => {
+            if (allCases.has(caseData.id)) {
+              // Merge operative parts from the same case across different articles
+              const existingCase = allCases.get(caseData.id)
+              const existingOperativeParts = existingCase.operative_parts || []
+              const newOperativeParts = caseData.operative_parts || []
+              
+              // Combine operative parts, avoiding duplicates by operative part ID
+              const mergedOperativeParts = [...existingOperativeParts]
+              newOperativeParts.forEach((newPart: any) => {
+                if (!mergedOperativeParts.some((existing: any) => existing.id === newPart.id)) {
+                  mergedOperativeParts.push(newPart)
+                }
+              })
+              
+              existingCase.operative_parts = mergedOperativeParts
+            } else {
+              // First time seeing this case
+              allCases.set(caseData.id, { ...caseData })
+            }
+          })
+        })
+        
+        const uniqueCases = Array.from(allCases.values())
+        setCases(uniqueCases)
+        
+        // Set basic pagination for article-filtered results
         setPagination({
           currentPage: 1,
           totalPages: 1,
-          totalItems: result.length,
+          totalItems: uniqueCases.length,
           itemsPerPage: 25,
           hasNext: false,
           hasPrev: false
         })
       }
     } catch (error) {
-      console.error('Error fetching cases by article:', error)
+      console.error('Error fetching cases by articles:', error)
     }
   }
 
@@ -112,21 +148,21 @@ export function CaseLawPage() {
 
   const handleLegislationFilter = async (legislationId: string | null) => {
     setSelectedLegislation(legislationId)
-    setSelectedArticle(null) // Reset article filter
+    setSelectedArticles([]) // Reset article filter
     setCurrentOffset(0) // Reset to first page
     
     await fetchCases(0, legislationId)
   }
 
-  const handleArticleFilter = async (articleId: string | null) => {
-    setSelectedArticle(articleId)
+  const handleArticleFilter = async (articleIds: string[]) => {
+    setSelectedArticles(articleIds)
     setCurrentOffset(0) // Reset to first page
     
-    if (articleId) {
-      // Fetch cases that interpret this specific article
-      await fetchCasesByArticle(articleId)
+    if (articleIds.length > 0) {
+      // Fetch cases that interpret these specific articles
+      await fetchCasesByArticles(articleIds)
     } else {
-      // If no article selected, fall back to legislation filter or all cases
+      // If no articles selected, fall back to legislation filter or all cases
       await fetchCases(0, selectedLegislation)
     }
   }
@@ -223,7 +259,7 @@ export function CaseLawPage() {
             <FilterPanel
               legislations={legislations}
               selectedLegislation={selectedLegislation}
-              selectedArticle={selectedArticle}
+              selectedArticles={selectedArticles}
               onLegislationFilter={handleLegislationFilter}
               onArticleFilter={handleArticleFilter}
             />

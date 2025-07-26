@@ -44,26 +44,55 @@ export function CaseList({
     const fetchArticlesForCases = async () => {
       try {
         const caseIds = cases.map(c => c.id)
-        const response = await fetch('/api/cases/articles/bulk', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ caseIds })
-        })
         
-        if (response.ok) {
-          const articlesMap = await response.json()
-          setCaseArticles(articlesMap)
-        } else {
-          console.error('Bulk API failed:', response.status, response.statusText)
-          // Fallback to empty articles
-          const emptyMap: Record<string, any[]> = {}
-          cases.forEach(c => { emptyMap[c.id] = [] })
-          setCaseArticles(emptyMap)
+        // Initialize empty map for all cases
+        const emptyMap: Record<string, any[]> = {}
+        cases.forEach(c => { emptyMap[c.id] = [] })
+        setCaseArticles(emptyMap)
+        
+        // Process in batches of 25 to stay well under the 50 limit and avoid rate limiting
+        const batchSize = 25
+        const finalArticlesMap: Record<string, any[]> = {}
+        
+        for (let i = 0; i < caseIds.length; i += batchSize) {
+          const batch = caseIds.slice(i, i + batchSize)
+          
+          try {
+            const response = await fetch('/api/cases/articles/bulk', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ caseIds: batch })
+            })
+            
+            if (response.ok) {
+              const batchArticlesMap = await response.json()
+              Object.assign(finalArticlesMap, batchArticlesMap)
+            } else {
+              console.warn(`Batch API failed for batch ${i / batchSize + 1}:`, response.status, response.statusText)
+              // Add empty entries for this batch
+              batch.forEach(caseId => {
+                finalArticlesMap[caseId] = []
+              })
+            }
+            
+            // Small delay between batches to avoid rate limiting
+            if (i + batchSize < caseIds.length) {
+              await new Promise(resolve => setTimeout(resolve, 100))
+            }
+          } catch (batchError) {
+            console.warn(`Error fetching batch ${i / batchSize + 1}:`, batchError)
+            // Add empty entries for this batch
+            batch.forEach(caseId => {
+              finalArticlesMap[caseId] = []
+            })
+          }
         }
+        
+        setCaseArticles(finalArticlesMap)
       } catch (error) {
-        console.error('Error fetching articles:', error)
+        console.error('Error in fetchArticlesForCases:', error)
         // Fallback to empty articles
         const emptyMap: Record<string, any[]> = {}
         cases.forEach(c => { emptyMap[c.id] = [] })

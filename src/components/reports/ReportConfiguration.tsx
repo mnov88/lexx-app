@@ -41,7 +41,7 @@ export function ReportConfiguration({
 
         if (response.ok) {
           const articlesByLegislation = await response.json()
-          const allArticles = Object.values(articlesByLegislation).flat()
+          const allArticles = Object.values(articlesByLegislation).flat() as any[]
           setAvailableArticles(allArticles)
         } else {
           console.error('Bulk articles API failed:', response.status)

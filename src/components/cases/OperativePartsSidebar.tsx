@@ -30,15 +30,33 @@ export function OperativePartsSidebar({
     if (!content) return []
     
     const headers = content.match(/^## .+$/gm) || []
-    return headers.map(header => {
+    const usedIds = new Set<string>()
+    
+    return headers.map((header, index) => {
       const title = header.replace('## ', '')
+      
       // Generate valid CSS selector ID by removing/replacing invalid characters
-      const id = title
+      let baseId = title
         .toLowerCase()
         .replace(/[^\w\s-]/g, '') // Remove all non-word, non-space, non-hyphen characters
         .replace(/\s+/g, '-') // Replace spaces with hyphens
         .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
         .replace(/-+/g, '-') // Replace multiple consecutive hyphens with single hyphen
+      
+      // Ensure the ID is not empty
+      if (!baseId) {
+        baseId = `heading-${index}`
+      }
+      
+      // Make sure the ID is unique
+      let id = baseId
+      let counter = 1
+      while (usedIds.has(id)) {
+        id = `${baseId}-${counter}`
+        counter++
+      }
+      usedIds.add(id)
+      
       return {
         id,
         title,

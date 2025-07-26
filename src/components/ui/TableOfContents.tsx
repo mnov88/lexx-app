@@ -27,16 +27,33 @@ export function TableOfContents({ content, isOpen, onClose, className = '' }: Ta
     // Extract headings from markdown content
     const headingRegex = /^(#{1,6})\s+(.+)$/gm
     const items: TocItem[] = []
+    const usedIds = new Set<string>()
     let match
+    let index = 0
 
     while ((match = headingRegex.exec(content)) !== null) {
       const level = match[1].length
       const title = match[2].trim()
-      const id = title.toLowerCase()
+      
+      let baseId = title.toLowerCase()
         .replace(/[^\w\s-]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-+|-+$/g, '')
+      
+      // Ensure the ID is not empty
+      if (!baseId) {
+        baseId = `heading-${index}`
+      }
+      
+      // Make sure the ID is unique
+      let id = baseId
+      let counter = 1
+      while (usedIds.has(id)) {
+        id = `${baseId}-${counter}`
+        counter++
+      }
+      usedIds.add(id)
 
       items.push({
         id,
@@ -44,6 +61,8 @@ export function TableOfContents({ content, isOpen, onClose, className = '' }: Ta
         level,
         href: `#${id}`
       })
+      
+      index++
     }
 
     setTocItems(items)

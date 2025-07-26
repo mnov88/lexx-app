@@ -70,22 +70,22 @@ export function GroupedCaseView({ legislationId }: GroupedCaseViewProps) {
               cases: transformedCases
             }
           })
+          
+          const validResults = results.filter(Boolean) as GroupedCaseData[]
+          
+          // Sort by article number
+          validResults.sort((a, b) => (a.article.article_number || 0) - (b.article.article_number || 0))
+          
+          setGroupedData(validResults)
+          
+          // Expand first few articles by default
+          const initialExpanded = new Set(validResults.slice(0, 3).map(item => item.article.id))
+          setExpandedArticles(initialExpanded)
         } catch (error) {
           console.error('Error fetching grouped cases:', error)
           setGroupedData([])
           return
         }
-        
-        const validResults = results.filter(Boolean) as GroupedCaseData[]
-        
-        // Sort by article number
-        validResults.sort((a, b) => (a.article.article_number || 0) - (b.article.article_number || 0))
-        
-        setGroupedData(validResults)
-        
-        // Expand first few articles by default
-        const initialExpanded = new Set(validResults.slice(0, 3).map(item => item.article.id))
-        setExpandedArticles(initialExpanded)
       } catch (error) {
         console.error('Error fetching grouped case data:', error)
         setGroupedData([])
